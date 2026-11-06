@@ -23,7 +23,7 @@ import "./styles/header.css";
 const allOption = "Todos";
 const supportOptions = [allOption, "Sim", "Não"];
 const ministryOfHealth = "MINISTÉRIO DA SAÚDE";
-const storageKey = "gereb-projects-editable-2026-10-20";
+const storageKey = "gereb-projects-editable-2026-11-05";
 const oldStorageKeys = [
   "gereb-projects-editable-v1",
   "gereb-projects-editable-v2",
@@ -596,7 +596,7 @@ function App() {
             <p>Uma visão integrada da carteira, dos recursos e da execução financeira.</p>
           </div>
           <div className="page-status" aria-label="Atualização do painel">
-            <span><i aria-hidden="true" /> Situação em 20/10/2026</span>
+            <span><i aria-hidden="true" /> Dados atualizados em 05/11/2026</span>
             <strong>{projectCountLabel}</strong>
           </div>
         </div>
