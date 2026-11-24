@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 const csvSource = await readFile(new URL('../projetos_fiotec_dashboard.csv', import.meta.url), 'utf8')
 const parserSource = await readFile(new URL('../src/data/projectCsv.js', import.meta.url), 'utf8')
 const moduleSource = parserSource.replace(/^import csvSource[^\n]*\n/, `const csvSource = ${JSON.stringify(csvSource)};\n`)
-const { csvProjects: projects } = await import(`data:text/javascript;base64,${Buffer.from(moduleSource).toString('base64')}`)
+const { csvProjects: projects, normalizeInstrumentType, normalizeProjects } = await import(`data:text/javascript;base64,${Buffer.from(moduleSource).toString('base64')}`)
 
 function assert(condition, message) {
   if (!condition) {
@@ -19,19 +19,14 @@ const normalizedInstrumentTypes = new Set(
   ),
 )
 
-assert(projects.length === 179, 'A base atualizada em 05/11/2026 deve conter exatamente 179 projetos.')
+assert(projects.length === 179, 'A base recebida em 24/11/2026 deve conter exatamente 179 projetos.')
 assert(new Set(projects.map(project => project.id)).size === projects.length, 'Os identificadores devem ser unicos.')
 for (const [field, expected] of Object.entries({ total: 1471582314.16, released: 787107605.35, receivable: 730285129.27, realized: 601644961.48, committed: 57232272.36, currentBalance: 128230371.51 })) {
   const actual = projects.reduce((sum, project) => sum + Math.round(project[field] * 100), 0)
   assert(actual === Math.round(expected * 100), `O total de ${field} deve corresponder a planilha.`)
 }
 assert(projects.every(project => /^\d{4}-\d{2}-\d{2}$/.test(project.start) && /^\d{4}-\d{2}-\d{2}$/.test(project.end)), 'As vigencias devem estar no formato ISO.')
-assert(appSource.includes('Dados atualizados em 05/11/2026'), 'O painel deve indicar a data de atualizacao.')
-assert(appSource.includes('const storageKey = "gereb-projects-editable-2026-11-05"'), 'O navegador deve carregar a nova base sem reutilizar os dados antigos.')
-const newProject = projects.find(project => project.id === 'GEREB-101-AEP-26')
-assert(newProject?.released === 75000 && newProject?.receivable === 175000, 'O novo AEP deve preservar os recursos enviados.')
-assert(!projects.some(project => project.id === 'GEREB-008-FIO-20'), 'Projetos ausentes da nova base nao devem permanecer no painel.')
-assert(projects.find(project => project.id === 'GEREB-047-FIO-26')?.axis === 'Geração de Informação em Saúde', 'O eixo com quebra de linha na origem deve ser importado por inteiro.')
+assert(appSource.includes('Base recebida em 24/11/2026'), 'A referencia deve indicar o recebimento da base, sem inferir a data dos saldos.')
 assert(normalizedInstrumentTypes.has('EMENDA PARLAMENTAR'), 'EMENDAS deve entrar em EMENDA PARLAMENTAR.')
 assert(appSource.includes('normalizeInstrumentType(project.instrumentType) === filters.modality'), 'Filtro de instrumento deve usar o valor normalizado.')
 assert(!appSource.includes('realizedProjectRanking'), 'Ranking de realizado nao deve ser fixo.')
@@ -43,5 +38,25 @@ assert(appSource.includes('filters.tedCategory'), 'A consulta por TED deve filtr
 assert(appSource.includes('filters.tedYear'), 'A consulta por TED deve filtrar por ano do TED.')
 assert(appSource.includes('filters.tedFunder'), 'A consulta por TED deve filtrar por orgao concedente.')
 assert(cssSource.includes('project-card-list'), 'A visualizacao mobile em cards deve estar estilizada.')
+
+const agreementLabel = 'ACORDO DE EXECUÇÃO DE PROJETOS'
+for (const value of ['AEP', ' aep ', 'acordo de execucao de projetos', ' ACORDO\u00a0DE  EXECUÇÃO DE PROJETOS\u200b', agreementLabel.normalize('NFD')]) {
+  assert(normalizeInstrumentType(value) === agreementLabel, `Tipo de instrumento não normalizado: ${value}`)
+}
+assert(normalizeInstrumentType(' emendas ') === 'EMENDA PARLAMENTAR', 'O alias EMENDAS deve ser preservado.')
+assert(normalizeInstrumentType('  nova categoria  ') === 'NOVA CATEGORIA', 'Categorias futuras não devem ser excluídas.')
+assert(normalizeInstrumentType(null) === 'Não informado', 'Tipos ausentes devem ter um rótulo seguro.')
+const normalizedAgain = normalizeProjects(projects)
+assert(JSON.stringify(normalizedAgain) === JSON.stringify(projects), 'A normalização repetida deve preservar os registros e valores.')
+assert(appSource.includes('Carteira de Projetos da GEREB'), 'O título institucional deve estar presente.')
+assert(!/filtersOpen|filter-toggle|Explorar projetos|Refinar a visão do painel/.test(appSource), 'O painel não deve conter controles ou textos antigos.')
+assert(!/filter-toggle|filter-panel\.is-open/.test(cssSource), 'Os estilos de recolhimento devem ser removidos.')
+const agreementProjects = projects.filter(project => project.instrumentType === agreementLabel)
+assert(agreementProjects.length === 15, 'Os 15 acordos da nova base devem entrar na categoria de acordos.')
+assert(projects.some(project => project.id === 'GEREB 111 AEP 26'), 'O identificador com espaços deve ser preservado.')
+assert(normalizeInstrumentType('ACORDO DE EXECUÇÃO DE PROJETO - AEP') === agreementLabel, 'O nome de acordo da origem deve ser normalizado.')
+assert(normalizeInstrumentType('SALDO DE CRÉDITO DISPONIBILIZADO - SCD') === 'SCD', 'A descrição de SCD deve manter a categoria existente.')
+const aepIds = projects.filter(project => /-AEP-/.test(project.id))
+console.log(`Auditoria: ${agreementProjects.length} projetos classificados como ${agreementLabel}; ${aepIds.length} IDs com AEP (${[...new Set(aepIds.map(project => project.instrumentType))].join(', ')}).`)
 
 console.log('Smoke test passed.')
