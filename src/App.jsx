@@ -296,15 +296,34 @@ function App() {
   const allTedCount = allTedProjects.length;
 
   const updateTedFilter = (key, value) =>
-    setFilters((current) => ({
-      ...current,
-      project: allOption,
-      modality: allOption,
-      instrumentNumber: allOption,
-      ...(key === "tedFunder" ? { funder: allOption } : {}),
-      ...(key === "tedSupport" ? { supportTed: allOption } : {}),
-      [key]: value,
-    }));
+    setFilters((current) => {
+      const next = {
+        ...current,
+        project: allOption,
+        modality: allOption,
+        instrumentNumber: allOption,
+        ...(key === "tedFunder" ? { funder: allOption } : {}),
+        ...(key === "tedSupport" ? { supportTed: allOption } : {}),
+        [key]: value,
+      };
+      const getValue = {
+        tedCategory: getTedCategory,
+        ted: (project) => project.instrumentNumber,
+        tedYear: getTedYear,
+        tedFunder: (project) => project.funder,
+        tedSupport: (project) => project.supportTed ? "Sim" : "N\u00e3o",
+      };
+      let scope = allTedProjects.filter((project) =>
+        value === allOption || getValue[key](project) === value,
+      );
+      for (const otherKey of tedFilterKeys) {
+        if (otherKey === key || next[otherKey] === allOption) continue;
+        const matching = scope.filter((project) => getValue[otherKey](project) === next[otherKey]);
+        if (matching.length) scope = matching;
+        else next[otherKey] = allOption;
+      }
+      return next;
+    });
 
   const clearTedFilters = () =>
     setFilters((current) => ({
